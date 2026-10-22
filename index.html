@@ -403,7 +403,9 @@
   }
   function setupRecaptcha(){
     if(recaptcha){ try{ recaptcha.clear(); }catch(e){} recaptcha = null; }
-    $('recaptcha-container').innerHTML = '';
+    const old = $('recaptcha-container');
+    const fresh = document.createElement('div'); fresh.id = 'recaptcha-container';
+    old.parentNode.replaceChild(fresh, old);
     recaptcha = new firebase.auth.RecaptchaVerifier('recaptcha-container', { size: 'invisible' });
   }
 
@@ -420,7 +422,7 @@
       $('otpSub').textContent = 'We sent a 6-digit code to +' + p;
       $('otpInput').value = '';
       setTimeout(function(){ $('otpInput').focus(); }, 50);
-    }catch(e){ console.error(e); loginErr(authMsg(e)); }
+    }catch(e){ console.error(e); if(recaptcha){ try{ recaptcha.clear(); }catch(x){} recaptcha = null; } loginErr(authMsg(e)); }
     $('sendOtpBtn').disabled = false;
   }
 
