@@ -1,4 +1,4 @@
-const CACHE = 'my-chate-v6';
+const CACHE = 'my-chate-v8';
 const FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>My Chate</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#008069">
+<meta name="theme-color" content="#ffffff">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -206,6 +206,37 @@
   #callScreen{background:linear-gradient(#0B141A,#1F2C34);}
   #callAv{background:#6A7F8A;}
   .cbtn.acc{background:#25D366;}
+
+  /* ===== WhatsApp latest look ===== */
+  body{font-family:Roboto,'Segoe UI',Arial,sans-serif;}
+  header{background:#fff !important;color:#111B21 !important;box-shadow:none !important;padding:10px 8px 6px 16px;}
+  header h1{font-size:18px;font-weight:500;color:#111B21;}
+  header p{color:#667781 !important;font-size:13px;}
+  header .avatar{background:#6A7F8A !important;color:#fff;width:40px;height:40px;}
+  .icon-btn{color:#111B21 !important;font-size:21px;}
+  .icon-btn:active{background:#F0F2F5 !important;}
+  .sync-badge{font-size:9px;padding:1px 6px;background:#F0F2F5;}
+  #camBtn{display:none;}
+  body.inlist #camBtn{display:inline-block;}
+  body.inlist header h1{font-size:30px;font-weight:700;letter-spacing:-.5px;}
+  body.inlist header p,body.inlist header .avatar,body.inlist #syncBadge{display:none;}
+  body.inlist header{padding-top:16px;padding-bottom:4px;}
+  #menuPop{top:52px;}
+  #chatSearch{margin:10px 16px 14px;width:calc(100% - 32px);height:54px;padding:0 20px 0 52px;border-radius:28px;font-size:18px;background:#F0F2F5 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23667781' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M16 16l5 5'/%3E%3C/svg%3E") no-repeat 18px center;}
+  .chat-item{padding:11px 16px;gap:16px;}
+  .chat-item .av{width:56px;height:56px;font-size:22px;}
+  .chat-item .nm{font-size:18px;font-weight:500;color:#111B21;}
+  .chat-item .last{font-size:15px;color:#667781;}
+  .chat-item .tm{font-size:13px;}
+  .chat-item .info{border-bottom:none;padding-bottom:0;margin-bottom:0;}
+  #newChatBtn{background:#111B21;color:#fff;width:62px;height:62px;border-radius:20px;font-size:32px;font-weight:300;bottom:calc(92px + env(safe-area-inset-bottom));right:max(18px,calc(50% - 392px));}
+  #bottomNav{display:none;background:#fff;border-top:1px solid #E9EDEF;padding:8px 0 calc(10px + env(safe-area-inset-bottom));}
+  body.inlist #bottomNav{display:flex;}
+  #bottomNav .ni{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:#111B21;}
+  #bottomNav .pill2{width:60px;height:32px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;}
+  #bottomNav .ni.on .pill2{background:#E7E8EA;}
+  #bottomNav b{font-size:13px;font-weight:500;}
+  #bottomNav .ni.on b{font-weight:700;}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -305,11 +336,13 @@
     </div>
     <div class="hbtns">
       <span class="sync-badge connecting" id="syncBadge">🔄</span>
+      <button class="icon-btn" id="camBtn" title="Status" onclick="openStatus()">📷</button>
       <button class="icon-btn" id="vcallBtn" title="Video call" style="display:none;" onclick="startCall(true)">📹</button>
       <button class="icon-btn" id="callBtn" title="Voice call" style="display:none;" onclick="startCall()">📞</button>
       <button class="icon-btn" id="menuBtn" title="Menu" onclick="toggleMenu(event)">⋮</button>
     </div>
     <div id="menuPop">
+      <div class="mi" onclick="editProfile()">👤 Profile</div>
       <div class="mi" onclick="openPicker('group')">👥 New group</div>
       <div class="mi" onclick="addContact()">➕ Add contact</div>
       <div class="mi" onclick="openStatus()">📷 Status</div>
@@ -321,11 +354,17 @@
   </header>
 
   <div id="listView">
-    <div id="tabs"><div class="tab on">CHATS</div><div class="tab" onclick="openStatus()">STATUS</div><div class="tab" onclick="openPicker()">CONTACTS</div></div>
-    <input id="chatSearch" type="search" placeholder="Search or start a new chat" oninput="renderList()">
+    <input id="chatSearch" type="search" placeholder="Search…" oninput="renderList()">
     <div id="chatItems"></div>
-    <button id="newChatBtn" onclick="openPicker()" title="New chat">✉️</button>
+    <button id="newChatBtn" onclick="openPicker()" title="New chat">＋</button>
   </div>
+
+  <nav id="bottomNav">
+    <div class="ni on"><span class="pill2">💬</span><b>Chats</b></div>
+    <div class="ni" onclick="openStatus()"><span class="pill2">⭕</span><b>Updates</b></div>
+    <div class="ni" onclick="openPicker()"><span class="pill2">👤</span><b>Contacts</b></div>
+    <div class="ni" onclick="openPicker('group')"><span class="pill2">👥</span><b>Groups</b></div>
+  </nav>
 
   <div id="chatView">
     <div id="messages"></div>
@@ -656,6 +695,7 @@
   // ---------- Views ----------
   function renderHeader(){
     if(!me) return;
+    document.body.classList.toggle('inlist', openChat === null);
     const isDm = openChat && openChat !== 'group' && !isGrp(openChat);
     $('callBtn').style.display = isDm ? 'inline-block' : 'none'; $('vcallBtn').style.display = isDm ? 'inline-block' : 'none';
     if(openChat === null){
@@ -1406,6 +1446,17 @@
 <script>
 function toggleMenu(e){ e.stopPropagation(); const m = document.getElementById('menuPop'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; }
 document.addEventListener('click', function(){ const m = document.getElementById('menuPop'); if(m) m.style.display = 'none'; });
+</script>
+<script>
+// Chrome "Desktop site" mode mein page chhota dikhta hai: usay phone ki chaurai par wapas laata hai
+(function(){
+  function fit(){
+    const de = document.documentElement; de.style.zoom = '';
+    const sw = screen.width, iw = window.innerWidth;
+    if('ontouchstart' in window && sw > 0 && iw > sw * 1.25) de.style.zoom = (iw / sw).toFixed(3);
+  }
+  fit(); window.addEventListener('resize', fit); window.addEventListener('orientationchange', function(){ setTimeout(fit, 300); });
+})();
 </script>
 </body>
 </html>
