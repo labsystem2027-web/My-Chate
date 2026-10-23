@@ -237,6 +237,8 @@
   #bottomNav .ni.on .pill2{background:#E7E8EA;}
   #bottomNav b{font-size:13px;font-weight:500;}
   #bottomNav .ni.on b{font-weight:700;}
+  body{background:#008069;}
+  #loginScreen{visibility:hidden;}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -519,6 +521,7 @@
       db = firebase.firestore();
       auth = firebase.auth();
       auth.useDeviceLanguage();
+      try{ auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }catch(e){}
       firebaseReady = true;
       return true;
     }catch(e){ console.error(e); return false; }
@@ -536,11 +539,13 @@
     else if(d.length === 10 && d.charAt(0) === '3') d = '92' + d;
     return (d.length >= 11 && d.length <= 15) ? d : null;
   }
+  function showLogin(){ $('loginScreen').style.visibility = 'visible'; }
   function showLoginStep(step){
+    showLogin();
     ['stepPhone', 'stepOtp', 'stepName'].forEach(function(id){ $(id).style.display = id === step ? 'block' : 'none'; });
     $('loginErr').style.display = 'none';
   }
-  function loginErr(msg){ const e = $('loginErr'); e.textContent = msg; e.style.display = 'block'; }
+  function loginErr(msg){ showLogin(); const e = $('loginErr'); e.textContent = msg; e.style.display = 'block'; }
   function authMsg(e){
     const m = {
       'auth/invalid-phone-number': 'Invalid phone number.',
@@ -1437,8 +1442,9 @@
   }
 
   // ---------- Init ----------
-  if(initFirebase()){ auth.onAuthStateChanged(handleAuth); }
+  if(initFirebase()){ auth.onAuthStateChanged(function(u){ if(!u) showLogin(); handleAuth(u); }); setTimeout(showLogin, 6000); }
   else {
+    showLogin();
     $('loginErr').textContent = 'Firebase config is not set (add firebaseConfig in index.html).';
     $('loginErr').style.display = 'block';
   }
