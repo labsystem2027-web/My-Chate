@@ -239,6 +239,11 @@
   #bottomNav .ni.on b{font-weight:700;}
   body{background:#008069;}
   #loginScreen{visibility:hidden;}
+  #chips{display:flex;gap:8px;padding:0 16px 8px;}
+  .chip{padding:7px 16px;border-radius:18px;background:#F0F2F5;font-size:15px;color:#111B21;cursor:pointer;}
+  .chip.on{background:#D9FDD3;color:#0A5C36;font-weight:600;}
+  html.dark{filter:invert(1) hue-rotate(180deg);background:#000;}
+  html.dark img,html.dark video,html.dark .av,html.dark .avatar,html.dark #newChatBtn,html.dark #callScreen{filter:invert(1) hue-rotate(180deg);}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -344,28 +349,28 @@
       <button class="icon-btn" id="menuBtn" title="Menu" onclick="toggleMenu(event)">⋮</button>
     </div>
     <div id="menuPop">
-      <div class="mi" onclick="editProfile()">👤 Profile</div>
-      <div class="mi" onclick="openPicker('group')">👥 New group</div>
-      <div class="mi" onclick="addContact()">➕ Add contact</div>
-      <div class="mi" onclick="openStatus()">📷 Status</div>
-      <div class="mi" onclick="toggleSound()"><span id="soundBtn">🔔</span> Sound</div>
+      <div class="mi" onclick="openPicker('group')">New group</div>
+      <div class="mi" onclick="openPicker('bcast')">New broadcast</div>
+      <div class="mi" onclick="addContact()">Add contact</div>
+      <div class="mi" onclick="openStarred()">Starred</div>
+      <div class="mi" onclick="openSettings()">Settings</div>
+      <span id="soundBtn" style="display:none">🔔</span>
       <div class="mi" id="installBtn" style="display:none;" onclick="installApp()">📲 Install app</div>
-      <div class="mi" onclick="openAdminGate()">⚙️ Admin</div>
-      <div class="mi" onclick="logout()">⎋ Log out</div>
     </div>
   </header>
 
   <div id="listView">
     <input id="chatSearch" type="search" placeholder="Search…" oninput="renderList()">
+    <div id="chips"></div>
     <div id="chatItems"></div>
     <button id="newChatBtn" onclick="openPicker()" title="New chat">＋</button>
   </div>
 
   <nav id="bottomNav">
     <div class="ni on"><span class="pill2">💬</span><b>Chats</b></div>
+    <div class="ni" onclick="openCalls()"><span class="pill2">📞</span><b>Calls</b></div>
     <div class="ni" onclick="openStatus()"><span class="pill2">⭕</span><b>Updates</b></div>
-    <div class="ni" onclick="openPicker()"><span class="pill2">👤</span><b>Contacts</b></div>
-    <div class="ni" onclick="openPicker('group')"><span class="pill2">👥</span><b>Groups</b></div>
+    <div class="ni" onclick="openSettings()"><span class="pill2">⚙️</span><b>Settings</b></div>
   </nav>
 
   <div id="chatView">
@@ -408,7 +413,8 @@
   // Voice call ke liye STUN/TURN. Mobile data par aksar TURN server chahiye hota hai (neeche example).
   const RTC_CONFIG = { iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' }
     // , { urls: 'turn:YOUR_TURN_HOST:443?transport=tcp', username: 'USER', credential: 'PASS' }
   ]};           // voice message ki max length (seconds)
 
@@ -658,7 +664,7 @@
           if(Date.now() - d.ts > 60000) return;
           if(pc || incoming){ ch.doc.ref.update({ status: 'busy' }).catch(function(){}); return; }
           incoming = { id: ch.doc.id, data: d };
-          showCallUI(d.callerName, 'Incoming voice call...', 'in');
+          showCallUI(d.callerName, d.video ? 'Incoming video call...' : 'Incoming voice call...', 'in');
           startRing();
           if(document.hidden && 'Notification' in window && Notification.permission === 'granted'){
             try{ new Notification('📞 ' + d.callerName, { body: 'Incoming voice call', icon: 'icon-192.png' }); }catch(e){}
@@ -728,6 +734,7 @@
   function presenceText(num){
     const c = chats[openChat] || {}, u = users[num] || {};
     if(c['ty_' + num] && Date.now() - c['ty_' + num] < 4500) return 'typing...';
+    if(u.hideSeen) return '+' + num;
     if(u.lastSeen && Date.now() - u.lastSeen < 60000) return 'online';
     return u.lastSeen ? 'last seen ' + timeShort(u.lastSeen) : '+' + num;
   }
@@ -774,8 +781,8 @@
   function chatMenu(id){
     lpFired = true;
     const pin = lsGet('mc_pins').includes(id), mute = lsGet('mc_mutes').includes(id);
-    const r = prompt('1 = ' + (pin ? 'Unpin' : 'Pin') + ' chat\n2 = ' + (mute ? 'Unmute' : 'Mute') + ' chat', '');
-    if(r === '1') lsToggle('mc_pins', id); else if(r === '2') lsToggle('mc_mutes', id);
+    const r = prompt('1 = ' + (pin ? 'Unpin' : 'Pin') + ' chat\n2 = ' + (mute ? 'Unmute' : 'Mute') + ' chat\n3 = Archive chat', '');
+    if(r === '1') lsToggle('mc_pins', id); else if(r === '2') lsToggle('mc_mutes', id); else if(r === '3') lsToggle('mc_arch', id);
     renderList();
   }
   (function(){
@@ -818,8 +825,11 @@
     const pins = lsGet('mc_pins'), mutes = lsGet('mc_mutes');
     items.sort((a, b) => (a.id === 'group' ? -2 : pins.includes(a.id) ? -1 : 0) - (b.id === 'group' ? -2 : pins.includes(b.id) ? -1 : 0));
     const q = ($('chatSearch').value || '').trim().toLowerCase();
+    const arch = lsGet('mc_arch');
+    const isUn = it => it.meta && it.meta.lastFrom !== me.num && it.meta.lastTs > (rd[it.id] || 0);
     let html = '';
-    items.filter(it => !q || (it.title + ' ' + it.last).toLowerCase().includes(q)).forEach(function(it){
+    if(arch.length && !q && listFilter === 'all') html += '<div class="chat-item" onclick="openArchived()"><div class="av" style="background:#F0F2F5;color:#111B21">📥</div><div class="info"><div class="top"><span class="nm" style="font-weight:500">Archived</span><span class="tm">' + arch.length + '</span></div></div></div>';
+    items.filter(it => !arch.includes(it.id) && (!q || (it.title + ' ' + it.last).toLowerCase().includes(q)) && (listFilter === 'all' || (listFilter === 'groups' && (it.id === 'group' || isGrp(it.id))) || (listFilter === 'unread' && isUn(it)))).forEach(function(it){
       const unread = it.meta && it.meta.lastFrom !== me.num && it.meta.lastTs > (rd[it.id] || 0);
       html += '<div class="chat-item' + (unread ? ' unread' : '') + '" data-id="' + it.id + '" onclick="if(lpFired){lpFired=false;return;}openChatView(\'' + it.id + '\')">' +
         (it.num && users[it.num] && users[it.num].photo ? '<div class="av" style="background:url(' + users[it.num].photo + ') center/cover"></div>' : '<div class="av ' + it.cls + '">' + esc(it.av) + '</div>') +
@@ -831,6 +841,7 @@
   }
 
   function openChatView(id){
+    if(typeof closeOv === 'function') closeOv();
     openChat = id; unreadCnt[id] = 0; syncSend(); clearReply(); $('emojiPanel').style.display = 'none';
     $('listView').style.display = 'none';
     $('chatView').style.display = 'flex';
@@ -842,7 +853,7 @@
     unsubMsgs = db.collection('chats').doc(id).collection('messages').orderBy('ts').limitToLast(MAX_MESSAGES)
       .onSnapshot({ includeMetadataChanges: true }, function(snap){
         msgs = [];
-        snap.forEach(d => { const x = d.data(); msgs.push({ id:d.id, from:x.from, name:x.name, text:x.text, ts:x.ts, audio:x.audio, dur:x.dur, img:x.img, reply:x.reply, pending:d.metadata.hasPendingWrites }); });
+        snap.forEach(d => { const x = d.data(); msgs.push({ id:d.id, from:x.from, name:x.name, text:x.text, ts:x.ts, audio:x.audio, dur:x.dur, img:x.img, reply:x.reply, edited:x.edited, fwd:x.fwd, pending:d.metadata.hasPendingWrites }); });
         renderMessages(true);
         if(msgs.length) markRead(id, msgs[msgs.length - 1].ts);
         sendRead(id);
@@ -1031,7 +1042,7 @@
   async function startRec(){
     if(!openChat) return;
     if(!navigator.mediaDevices || !window.MediaRecorder){ alert('Voice recording is not supported in this browser. Use Chrome.'); return; }
-    try{ recStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: video ? { facingMode: 'user' } : false }); }
+    try{ recStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
     catch(e){ alert('Please allow microphone access (browser settings).'); return; }
     const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
     const mime = types.find(t => MediaRecorder.isTypeSupported(t)) || '';
@@ -1084,7 +1095,7 @@
 
   // ---------- Personal chat picker ----------
   function openPicker(mode){
-    pickMode = mode || 'dm'; if(pickMode !== 'group') grpSel = [];
+    pickMode = mode || 'dm'; if(pickMode !== 'group' && pickMode !== 'bcast') grpSel = [];
     $('pickSearch').value = '';
     renderPick();
     $('pickModal').style.display = 'flex';
@@ -1097,7 +1108,7 @@
     let html = '';
     others.forEach(function(u){
       html += '<div class="pick" onclick="pickTap(\'' + u.num + '\')"><div class="av" style="width:40px;height:40px;border-radius:50%;background:#6A7F8A;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;">' +
-        (pickMode === 'group' && grpSel.includes(u.num) ? '✓' : esc(nameOf(u.num).charAt(0).toUpperCase())) + '</div><div style="flex:1;"><div style="font-weight:600;font-size:14px;">' + (myContacts()[u.num] ? '📇 ' : '') + esc(nameOf(u.num)) +
+        ((pickMode === 'group' || pickMode === 'bcast') && grpSel.includes(u.num) ? '✓' : esc(nameOf(u.num).charAt(0).toUpperCase())) + '</div><div style="flex:1;"><div style="font-weight:600;font-size:14px;">' + (myContacts()[u.num] ? '📇 ' : '') + esc(nameOf(u.num)) +
         '</div><div style="font-size:12px;color:var(--muted);">+' + esc(u.num) + '</div></div></div>';
     });
     $('pickList').innerHTML = pickHead() + (html || '<div class="list-hint">No users found.</div>');
@@ -1134,13 +1145,85 @@
       alert(cnt + ' contact(s) saved. ' + skipped + ' number(s) not on My Chate.');
     }catch(e){ console.error(e); }
   }
+  function sendBroadcast(){
+    if(!grpSel.length) return alert('Select at least one person.');
+    const text = prompt('Broadcast message:', ''); if(!text || !text.trim()) return;
+    const list = grpSel.slice(); closeModal('pickModal');
+    list.forEach(function(n){ postMsg({ text: text.trim() }, text.trim().slice(0, 80), null, dmId(me.num, n)); });
+    alert('Broadcast sent to ' + list.length + ' contact(s).');
+  }
+  // ----- full-screen pages (Settings, Starred, Archived, Calls) -----
+  function showOv(title, body){
+    let o = $('ovGen');
+    if(!o){ o = document.createElement('div'); o.id = 'ovGen'; o.style.cssText = 'position:fixed;inset:0;background:#fff;color:#111B21;z-index:70;display:flex;flex-direction:column;'; document.body.appendChild(o); }
+    o.style.display = 'flex';
+    o.innerHTML = '<div style="display:flex;align-items:center;gap:6px;padding:14px 8px 10px;"><button onclick="closeOv()" style="border:none;background:none;font-size:24px;padding:4px 12px;color:inherit;">←</button><b style="font-size:22px;font-weight:500">' + title + '</b></div><div style="overflow:auto;flex:1;">' + body + '</div>';
+  }
+  function closeOv(){ const o = $('ovGen'); if(o) o.style.display = 'none'; }
+  function srow(ic, t, sub, oc){ return '<div style="display:flex;align-items:center;gap:20px;padding:14px 20px;cursor:pointer;" onclick="' + oc + '"><span style="font-size:22px;width:28px;text-align:center">' + ic + '</span><div><div style="font-size:17px">' + t + '</div>' + (sub ? '<div style="font-size:14px;color:#667781">' + sub + '</div>' : '') + '</div></div>'; }
+  function openSettings(){
+    const u = users[me.num] || {}, d = document.documentElement.classList.contains('dark');
+    const av = u.photo ? '<div style="width:64px;height:64px;border-radius:50%;background:url(' + u.photo + ') center/cover"></div>' : '<div style="width:64px;height:64px;border-radius:50%;background:#6A7F8A;color:#fff;display:flex;align-items:center;justify-content:center;font-size:26px">' + esc(me.name.charAt(0).toUpperCase()) + '</div>';
+    showOv('Settings',
+      '<div style="display:flex;align-items:center;gap:16px;padding:12px 20px 18px;border-bottom:1px solid #eee;cursor:pointer" onclick="editProfile();setTimeout(openSettings,1500)">' + av + '<div><div style="font-size:20px">' + esc(me.name) + '</div><div style="font-size:14px;color:#667781">' + esc(u.about || 'Hey there! I am using My Chate') + '</div><div style="font-size:13px;color:#667781">+' + esc(me.num) + '</div></div></div>' +
+      srow('🔔', 'Notifications', 'Message sounds: ' + (soundOn ? 'On' : 'Off'), 'toggleSound();openSettings()') +
+      srow('🌙', 'Theme', 'Dark mode: ' + (d ? 'On' : 'Off'), 'toggleDark()') +
+      srow('🔒', 'Privacy', 'Hide last seen &amp; online: ' + (u.hideSeen ? 'On' : 'Off'), 'toggleHideSeen()') +
+      srow('⭐', 'Starred messages', '', 'openStarred()') +
+      srow('📥', 'Archived chats', '', 'openArchived()') +
+      srow('📲', 'Install app', 'Add to home screen', 'installApp()') +
+      srow('⚙️', 'Admin panel', 'Manage users', 'closeOv();openAdminGate()') +
+      srow('❓', 'Help', 'How to use', 'showHelp()') +
+      srow('⎋', 'Log out', '', 'closeOv();logout()'));
+  }
+  function showHelp(){ alert('Long-press a chat: Pin / Mute / Archive.\nLong-press a message: Forward / Star / Edit / Delete.\nTap the avatar inside a chat: contact info and Save contact.'); }
+  function toggleHideSeen(){ db.collection('staffusers').doc(me.num).update({ hideSeen: !((users[me.num] || {}).hideSeen) }).then(function(){ setTimeout(openSettings, 500); }).catch(function(){}); }
+  function applyDark(){ let d = '0'; try{ d = localStorage.getItem('mc_dark') || '0'; }catch(e){} document.documentElement.classList.toggle('dark', d === '1'); }
+  function toggleDark(){ try{ localStorage.setItem('mc_dark', localStorage.getItem('mc_dark') === '1' ? '0' : '1'); }catch(e){} applyDark(); openSettings(); }
+  function stars(){ try{ return JSON.parse(localStorage.getItem('mc_star') || '{}'); }catch(e){ return {}; } }
+  function toggleStar(m){
+    const o = stars(), k = openChat + '|' + m.id;
+    if(o[k]) delete o[k]; else o[k] = { chat: openChat, text: m.text || (m.img ? '📷 Photo' : m.audio ? '🎤 Voice message' : ''), name: m.from === me.num ? 'You' : m.name, ts: m.ts };
+    try{ localStorage.setItem('mc_star', JSON.stringify(o)); }catch(e){}
+  }
+  function chatTitle(id){ return id === 'group' ? 'Everyone' : isGrp(id) ? ((chats[id] || {}).gname || 'Group') : nameOf(otherOf(id)); }
+  function openStarred(){
+    const o = stars(), arr = Object.keys(o).map(k => o[k]).sort((a, b) => b.ts - a.ts);
+    showOv('Starred messages', arr.length ? arr.map(function(x){
+      return '<div style="padding:12px 20px;border-bottom:1px solid #eee;cursor:pointer" onclick="closeOv();openChatView(\'' + x.chat + '\')"><div style="font-size:13px;color:#667781;display:flex"><span style="flex:1">' + esc(x.name || '') + ' › ' + esc(chatTitle(x.chat)) + '</span><span>' + timeShort(x.ts) + '</span></div><div style="font-size:16px;margin-top:4px">' + esc(x.text) + '</div></div>';
+    }).join('') : '<div class="list-hint">No starred messages.<br>Long-press a message and choose Star.</div>');
+  }
+  function openArchived(){
+    const a = lsGet('mc_arch');
+    showOv('Archived', a.length ? a.map(function(id){
+      return '<div class="chat-item" style="display:flex;align-items:center;gap:16px" onclick="closeOv();openChatView(\'' + id + '\')"><div class="av group">' + (id === 'group' || isGrp(id) ? '👥' : esc(chatTitle(id).charAt(0).toUpperCase())) + '</div><div class="info" style="flex:1"><span class="nm">' + esc(chatTitle(id)) + '</span></div><a onclick="event.stopPropagation();lsToggle(\'mc_arch\',\'' + id + '\');openArchived();renderList()" style="color:#008069;font-weight:600;padding:8px">Unarchive</a></div>';
+    }).join('') : '<div class="list-hint">No archived chats.</div>');
+  }
+  async function openCalls(){
+    showOv('Calls', '<div class="list-hint">Loading...</div>');
+    try{
+      const r = await Promise.all([db.collection('calls').where('caller', '==', me.num).limit(40).get(), db.collection('calls').where('callee', '==', me.num).limit(40).get()]);
+      const arr = []; r.forEach(function(sn){ sn.forEach(function(d){ arr.push(d.data()); }); });
+      arr.sort((x, y) => y.ts - x.ts);
+      showOv('Calls', arr.length ? arr.slice(0, 50).map(function(c){
+        const out = c.caller === me.num, peer = out ? c.callee : c.caller, miss = !out && ['missed', 'rejected'].indexOf(c.status) >= 0;
+        return '<div class="chat-item" style="display:flex;align-items:center;gap:16px" onclick="closeOv();openChatView(\'' + dmId(me.num, peer) + '\')"><div class="av">' + esc(nameOf(peer).charAt(0).toUpperCase()) + '</div><div class="info" style="flex:1"><span class="nm"' + (miss ? ' style="color:#C62828"' : '') + '>' + esc(nameOf(peer)) + '</span><div class="last">' + (out ? '↗ ' : '↙ ') + (c.video ? 'Video' : 'Voice') + ' · ' + timeShort(c.ts) + '</div></div></div>';
+      }).join('') : '<div class="list-hint">No calls yet.</div>');
+    }catch(e){ console.error(e); showOv('Calls', '<div class="list-hint">Could not load calls.</div>'); }
+  }
+  let listFilter = 'all';
+  function renderChips(){
+    const c = $('chips'); if(!c) return;
+    c.innerHTML = [['all', 'All'], ['unread', 'Unread'], ['groups', 'Groups']].map(function(f){ return '<span class="chip' + (listFilter === f[0] ? ' on' : '') + '" onclick="listFilter=\'' + f[0] + '\';renderChips();renderList()">' + f[1] + '</span>'; }).join('');
+  }
   function pickHead(){
     if(pickMode === 'group') return '<div class="pick" style="background:#e7f8f1;font-weight:600;" onclick="createGroup()">✅ Create group (' + grpSel.length + ' selected)</div>';
+    if(pickMode === 'bcast') return '<div class="pick" style="background:#e7f8f1;font-weight:600;" onclick="sendBroadcast()">📢 Send broadcast (' + grpSel.length + ' selected)</div>';
     if(pickMode === 'fwd') return '<div class="pick" style="font-weight:600;" onclick="doForward(\'group\')">👥 Everyone (group)</div>';
     return '';
   }
   function pickTap(num){
-    if(pickMode === 'group'){ const i = grpSel.indexOf(num); if(i < 0) grpSel.push(num); else grpSel.splice(i, 1); renderPick(); }
+    if(pickMode === 'group' || pickMode === 'bcast'){ const i = grpSel.indexOf(num); if(i < 0) grpSel.push(num); else grpSel.splice(i, 1); renderPick(); }
     else if(pickMode === 'fwd') doForward(dmId(me.num, num));
     else startDm(num);
   }
@@ -1165,8 +1248,9 @@
   function msgMenu(id){
     const m = msgs.find(x => x.id === id); if(!m) return;
     const mine = m.from === me.num;
-    const r = prompt('1 = Forward' + (mine ? '\n2 = Delete' + (m.text ? '\n3 = Edit' : '') : ''), '');
+    const r = prompt('1 = Forward\n4 = ' + (stars()[openChat + '|' + m.id] ? 'Unstar' : 'Star') + (mine ? '\n2 = Delete' + (m.text ? '\n3 = Edit' : '') : ''), '');
     if(r === '1') return startForward(m);
+    if(r === '4') return toggleStar(m);
     if(!mine) return;
     if(r === '2') deleteMsg(id);
     else if(r === '3' && m.text){
@@ -1300,8 +1384,8 @@
 
   async function micStream(video){
     if(!navigator.mediaDevices || !window.RTCPeerConnection){ alert('Calls are not supported in this browser. Use Chrome.'); return null; }
-    try{ return await navigator.mediaDevices.getUserMedia({ audio: true }); }
-    catch(e){ alert('Please allow microphone access (browser settings).'); return null; }
+    try{ return await navigator.mediaDevices.getUserMedia({ audio: true, video: video ? { facingMode: 'user' } : false }); }
+    catch(e){ alert(video ? 'Please allow camera and microphone access (browser settings).' : 'Please allow microphone access (browser settings).'); return null; }
   }
 
   async function startCall(video){
@@ -1464,5 +1548,6 @@ document.addEventListener('click', function(){ const m = document.getElementById
   fit(); window.addEventListener('resize', fit); window.addEventListener('orientationchange', function(){ setTimeout(fit, 300); });
 })();
 </script>
+<script>renderChips(); applyDark();</script>
 </body>
 </html>
